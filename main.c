@@ -12,6 +12,8 @@
 #define START_SEC 0 
 
 Mix_Music *sound = NULL;
+SDL_Window *window = NULL;
+SDL_Renderer *renderer = NULL;
 
 typedef struct {
 	SDL_Texture *texture;
@@ -187,40 +189,35 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer, Image *colon) {
 	}
 }
 
-int main() {
-
-	if(!validateInit()) {
-		return 1;
-	}
-
-	SDL_Window *window = SDL_CreateWindow(
-										 "Pomo Dhillon",
-										 SDL_WINDOWPOS_CENTERED,
-										 SDL_WINDOWPOS_CENTERED,
-										 800,
-										 600,
-										 SDL_WINDOW_SHOWN
-										 );
+int appSetup() {
+	window = SDL_CreateWindow(
+							"Pomo Dhillon",
+							SDL_WINDOWPOS_CENTERED,
+							SDL_WINDOWPOS_CENTERED,
+							800,
+							600,
+							SDL_WINDOW_SHOWN
+							);
 
 	if(window == NULL) {
 		fprintf(stderr, "Window creation failed: %s\n", SDL_GetError());
 		SDL_Quit();
-		return 1;
+		return 0;
 	}
 
 	SDL_RaiseWindow(window);
 
-	SDL_Renderer *renderer = SDL_CreateRenderer(
-												window,
-												-1,
-												SDL_RENDERER_ACCELERATED
-											   );
+	renderer = SDL_CreateRenderer(
+								window,
+								-1,
+								SDL_RENDERER_ACCELERATED
+								);
 
 	if(renderer == NULL) {
 		fprintf(stderr, "Renderer creation failed: %s\n", SDL_GetError());
 		SDL_DestroyWindow(window);
 		SDL_Quit();
-		return 1;
+		return 0;
 	}
 
 	sound = Mix_LoadMUS("sound/alarm.mp3");
@@ -228,11 +225,21 @@ int main() {
 		fprintf(stderr, "Failed to load the sound: %s\n", Mix_GetError());
 		Mix_CloseAudio();
 		SDL_Quit();
+		return 0;
+	}
+
+	return 1;
+}
+
+int main() {
+
+	if(!validateInit()) {
 		return 1;
 	}
-	
-	int running = 1;
-	SDL_Event event;
+
+	if(!appSetup()) {
+		return 1;
+	}
 
 	Image numbers[10] = {
 		loadImage(renderer, "image/0.png"),
@@ -277,6 +284,9 @@ int main() {
 		.seconds = START_SEC,
 		.last_tick = SDL_GetTicks()
 	};
+
+	int running = 1;
+	SDL_Event event;
 
 	while(running) {
 		while(SDL_PollEvent(&event)) {
@@ -333,13 +343,20 @@ int main() {
 		SDL_Delay(16);
 	}
 
-	for(int i=0; i<=10; i++) {
+	for(int i=0; i<10; i++) {
 		destroyImage(&numbers[i]);
 	}
 
 	destroyImage(&colon);
 	destroyImage(&start_img);
 	destroyImage(&reset_img);
+
+	if(sound != NULL) {
+		Mix_FreeMusic(sound);
+		sound = NULL;
+	}
+
+	Mix_CloseAudio();
 
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
