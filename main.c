@@ -8,12 +8,16 @@
 #define WINDOW_HEIGHT 600
 #define DIGIT_WIDTH 120
 #define DIGIT_HEIGHT 120
-#define START_MIN 0
-#define START_SEC 10 
+#define FOCUS_START_MIN 0
+#define FOCUS_START_SEC 10
+#define BREAK_START_MIN 0 
+#define BREAK_START_SEC 5 
 
-Mix_Music *sound = NULL;
-SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
+Mix_Music    *sound       = NULL;
+SDL_Window   *window      = NULL;
+SDL_Renderer *renderer    = NULL;
+SDL_Cursor   *arrowCursor = NULL;
+SDL_Cursor   *handCursor  = NULL;
 
 typedef struct {
 	SDL_Texture *texture;
@@ -37,6 +41,16 @@ typedef struct {
 	Image image;
 } Button;
 
+enum TimerType {
+	FOCUS,
+	BREAK
+};
+
+enum TimerState {
+	COMPLETE,
+	NOT_COMPLETE
+};
+
 typedef struct {
 	SDL_Rect rectangle;
 	SDL_Color color;
@@ -46,6 +60,8 @@ typedef struct {
 	int minutes;
 	int seconds;
 	Uint32 last_tick;
+	enum TimerType type;
+	enum TimerState state;
 } Timer;
 
 Timer timer;
@@ -156,7 +172,6 @@ void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 4;
 	renderImage(renderer, &timer->digits[sec_ones], &destination);
 }
-
 void renderButton(SDL_Renderer *renderer, const Button *button) {
 	SDL_Color color;
 
@@ -189,6 +204,15 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer, Image *colon) {
 				Mix_PlayMusic(sound, 1);
 			}
 			timer->started = false;
+			if(timer->type == FOCUS) {
+				timer->type = BREAK;
+				timer->minutes = BREAK_START_MIN;
+				timer->seconds = BREAK_START_SEC;
+			} else {
+				timer->type = FOCUS;
+				timer->minutes = FOCUS_START_MIN;
+				timer->seconds = FOCUS_START_SEC;
+			}
 			break;
 		}
 
@@ -283,6 +307,12 @@ int observeEvents(SDL_Event *event, Timer *timer) {
 			timer->button.is_hovered = SDL_PointInRect(
 														&(SDL_Point) {mouse_x, mouse_y},
 														&timer->button.rectangle);
+
+			if(timer->button.is_hovered) {
+				SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND));
+			} else {
+				SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW));
+			}
 		} else if(event->type == SDL_MOUSEBUTTONDOWN) {
 			if(event->button.button == SDL_BUTTON_LEFT) {
 				int mouse_x = event->button.x;
@@ -308,8 +338,6 @@ int observeEvents(SDL_Event *event, Timer *timer) {
 						timer->started = true;
 					}
 
-					timer->minutes = START_MIN;
-					timer->seconds = START_SEC;
 					timer->last_tick = SDL_GetTicks();
 				}
 			}
@@ -330,7 +358,7 @@ void runApp() {
 		}
 		updateTimer(&timer, renderer, &colon);
 
-		SDL_SetRenderDrawColor(renderer, 30, 30, 80, 255);
+		SDL_SetRenderDrawColor(renderer, 163, 79, 76, 255);
 		SDL_RenderClear(renderer);
 
 		renderButton(renderer, &timer.button);
@@ -358,19 +386,28 @@ void configureTimer() {
 				200,
 				70
 			},
-			.normal_color = { 70, 70, 180, 255 },
-			.hover_color = { 100, 100, 230, 255 },
-			.pressed_color = { 40, 40, 120, 255 },
+			.normal_color = { 255, 255, 255, 255 },
+			.hover_color = { 255, 255, 255, 255 },
+			.pressed_color = { 255, 255, 120, 255 },
 			.is_hovered = 0,
 			.is_pressed = 0,
 			.image = start_img
 		},
         .digits = numbers,
         .started = false,
-        .minutes = START_MIN,
-        .seconds = START_SEC,
-        .last_tick = SDL_GetTicks()
+        .last_tick = SDL_GetTicks(),
+		.type = FOCUS
     };
+
+	if(timer.type == FOCUS) {
+		timer.minutes = FOCUS_START_MIN;
+		timer.seconds = FOCUS_START_SEC;
+	} else {
+		timer.minutes = BREAK_START_MIN;
+		timer.seconds = BREAK_START_SEC;
+	}
+
+	printf("timer type: %d\n", timer.type);
 }
 
 void cleanupApp() {
