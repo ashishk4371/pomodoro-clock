@@ -11,7 +11,9 @@
 #define FOCUS_START_MIN 0
 #define FOCUS_START_SEC 10
 #define BREAK_START_MIN 0 
-#define BREAK_START_SEC 5 
+#define BREAK_START_SEC 5
+#define DIGIT_FRAME_COUNT 3
+#define DIGIT_FRAME_TIME 150
 
 Mix_Music    *sound       = NULL;
 SDL_Window   *window      = NULL;
@@ -26,7 +28,7 @@ typedef struct {
 	char *path;
 } Image;
 
-Image numbers[10];
+Image numbers[10][3];
 Image start_img;
 Image reset_img;
 Image colon;
@@ -55,13 +57,15 @@ typedef struct {
 	SDL_Rect rectangle;
 	SDL_Color color;
 	Button button;
-	Image *digits;
+	Image (*digits)[3];
 	bool started;
 	int minutes;
 	int seconds;
 	Uint32 last_tick;
 	enum TimerType type;
 	enum TimerState state;
+	int animation_frame;
+	Uint32 last_frame_time;
 } Timer;
 
 Timer timer;
@@ -141,7 +145,18 @@ void destroyImage(Image *image) {
 	}
 }
 
+void updateDigitAnimation(Timer *timer) {
+	Uint32 now = SDL_GetTicks();
+
+	if(now - timer->last_frame_time >= DIGIT_FRAME_TIME) {
+		timer->animation_frame = (timer->animation_frame + 1) % DIGIT_FRAME_COUNT;
+		timer->last_frame_time = now;
+	}
+}
+
 void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
+
+	updateDigitAnimation(timer);
 
 	int min_tens = timer->minutes / 10;
 	int min_ones = timer->minutes % 10;
@@ -149,28 +164,30 @@ void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
 	int sec_tens = timer->seconds / 10;
 	int sec_ones = timer->seconds % 10;
 
+	int frame    = timer->animation_frame;
+
 	SDL_Rect destination = {
 		timer->rectangle.x, timer->rectangle.y, DIGIT_WIDTH, DIGIT_HEIGHT
 	};
 
 	// tenth min digit
 	destination.x = timer->rectangle.x;
-	renderImage(renderer, &timer->digits[min_tens], &destination);
+	renderImage(renderer, &timer->digits[min_tens][frame], &destination);
 
 	// oneth min digit
 	destination.x = timer->rectangle.x + DIGIT_WIDTH;
-	renderImage(renderer, &timer->digits[min_ones], &destination);
+	renderImage(renderer, &timer->digits[min_ones][frame], &destination);
 
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 2;
 	renderImage(renderer, colon, &destination);
 
 	// tenth sec digit
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 3;
-	renderImage(renderer, &timer->digits[sec_tens], &destination);
+	renderImage(renderer, &timer->digits[sec_tens][frame], &destination);
 
 	// oneth sec digit
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 4;
-	renderImage(renderer, &timer->digits[sec_ones], &destination);
+	renderImage(renderer, &timer->digits[sec_ones][frame], &destination);
 }
 void renderButton(SDL_Renderer *renderer, const Button *button) {
 	SDL_Color color;
@@ -269,16 +286,42 @@ int appSetup() {
 	return 1;
 }
 
+char *repeatStr(char *str, size_t count) {
+	if(count == 0) return NULL;
+	char *ret = malloc(strlen(str) * count + count);
+	if(ret == NULL) return NULL;
+	strcpy(ret, str);
+	while(--count < 0) {
+		strcat(ret, "");
+		strcat(ret, str);
+	}
+	return ret;
+}
+
 int loadImages() {
 	for(int i=0; i<10; i++) {
-		char path[32];
+		for(int j=1; j<=3; j++) {
+			char path[32];
+			char name[4];
 
-		snprintf(path, sizeof(path), "image/%d.png", i);
-		numbers[i] = loadImage(renderer, path);
+			for(int k=0; k<j; k++) {
+				name[k] = (char)('0' + i);
+			}
 
-		if(numbers[i].texture == NULL) {
-			fprintf(stderr, "Failed to load image: %s [%s]\n", numbers[i].path, IMG_GetError()); 
-			return 0;
+			name[j] = '\0';
+
+			int written = snprintf(path, sizeof(path), "image/%s.png", name);
+			if(written < 0 || written >= sizeof(path)) {
+				fprintf(stderr, "Path is too long\n");
+				return 0;
+			}
+
+			numbers[i][j-1] = loadImage(renderer, path);
+
+			if(numbers[i][j-1].texture == NULL) {
+				fprintf(stderr, "Failed to load image: %s [%s]\n", numbers[i][j-1].path, IMG_GetError()); 
+				return 0;
+			}
 		}
 	}
 	
@@ -406,8 +449,6 @@ void configureTimer() {
 		timer.minutes = BREAK_START_MIN;
 		timer.seconds = BREAK_START_SEC;
 	}
-
-	printf("timer type: %d\n", timer.type);
 }
 
 void cleanupApp() {
