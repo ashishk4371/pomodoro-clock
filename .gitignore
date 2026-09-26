@@ -3,6 +3,7 @@ Makefile
 
 # Compiled programs
 *.exe
+a.out
 *.out
 *.app
 
@@ -10,3 +11,4 @@ Makefile
 *.o
 *.obj
 
+*~

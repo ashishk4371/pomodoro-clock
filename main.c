@@ -8,8 +8,8 @@
 #define WINDOW_HEIGHT 600
 #define DIGIT_WIDTH 120
 #define DIGIT_HEIGHT 120
-#define START_MIN 0 
-#define START_SEC 5 
+#define START_MIN 25 
+#define START_SEC 0 
 
 Mix_Music *sound = NULL;
 
