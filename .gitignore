@@ -1,0 +1,12 @@
+# CMake generated files
+Makefile
+
+# Compiled programs
+*.exe
+*.out
+*.app
+
+# Object files
+*.o
+*.obj
+

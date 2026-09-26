@@ -1,0 +1,11 @@
+Makefile
+
+# Compiled programs
+*.exe
+*.out
+*.app
+
+# Object files
+*.o
+*.obj
+

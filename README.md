@@ -1,0 +1,13 @@
+image_file
+  |
+IMG_Load()
+  |
+SDL_Surface
+  |
+SDL_CreateTextureFromSurface()
+  |
+SDL_Texture
+  |
+SDL_RenderCopy()
+  |
+window
