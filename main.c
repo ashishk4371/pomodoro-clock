@@ -18,6 +18,7 @@
 #define DIGIT_FRAME_TIME  150
 
 Mix_Music    *sound       = NULL;
+Mix_Music    *click       = NULL;
 SDL_Window   *window      = NULL;
 SDL_Renderer *renderer    = NULL;
 SDL_Cursor   *arrowCursor = NULL;
@@ -292,6 +293,14 @@ int appSetup() {
 		return 0;
 	}
 
+	click = Mix_LoadMUS("sound/click.mp3");
+	if(click == NULL) {
+		fprintf(stderr, "Failed to load the click sound: %s\n", Mix_GetError());
+		Mix_CloseAudio();
+		SDL_Quit();
+		return 0;
+	}
+
 	arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
 	handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 
@@ -394,6 +403,8 @@ int observeEvents(SDL_Event *event, Timer *timer) {
 				timer->button.is_pressed = 0;
 
 				if(SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y}, &timer->button.rectangle)) {
+					Mix_PlayMusic(click, 1);
+
 
 					if(timer->button.image.texture == reset_img.texture) {
 						timer->button.image = start_img;
@@ -403,7 +414,6 @@ int observeEvents(SDL_Event *event, Timer *timer) {
 						timer->button.image = reset_img;
 						timer->started = true;
 					}
-
 					timer->last_tick = SDL_GetTicks();
 				}
 			}
