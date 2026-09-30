@@ -10,12 +10,16 @@
 #define TIMER_WIDTH       600
 #define DIGIT_WIDTH       120
 #define DIGIT_HEIGHT      120
-#define FOCUS_START_MIN   25 
-#define FOCUS_START_SEC   0 
+#define FOCUS_START_MIN   0
+#define FOCUS_START_SEC   10 
 #define BREAK_START_MIN   5 
 #define BREAK_START_SEC   0 
 #define DIGIT_FRAME_COUNT 3
 #define DIGIT_FRAME_TIME  150
+#define PADDING           50
+#define CHAR_WIDTH        5 
+#define CHAR_HEIGHT       5 
+#define LETTERS           "aeprstu"
 
 Mix_Music    *sound       = NULL;
 Mix_Music    *click       = NULL;
@@ -36,6 +40,7 @@ Image start_img;
 Image reset_img;
 Image colon_img[3];
 Image colon;
+Image chars[26][3];
 
 typedef struct {
     SDL_Rect rectangle;
@@ -45,6 +50,7 @@ typedef struct {
     int is_hovered;
     int is_pressed;
 	Image image;
+	const char *text;
 } Button;
 
 enum TimerType {
@@ -61,7 +67,8 @@ typedef struct {
 	char *title;
 	SDL_Rect rectangle;
 	SDL_Color color;
-	Button button;
+	Button startButton;
+	Button resetButton;
 	Image (*digits)[3];
 	Image *colon_img;
 	bool started;
@@ -158,7 +165,33 @@ void updateDigitAnimation(Timer *timer) {
 	}
 }
 
-void renderButton(SDL_Renderer *renderer, const Button *button) {
+void renderImageText(char *str, const SDL_Rect *box, int frame) {
+	if(!str || !box) return;
+	if(frame < 0 || frame >= 3) return;
+	
+	int len = strlen(str);
+	if(len == 0) return;
+
+	int charWidth = box->w / len;
+	int x = box->x;
+
+	for(int i=0; str[i]!='\0'; i++) {
+		char ch = str[i];
+		int index = (int) (ch - 'a');
+
+		SDL_Rect dest = {
+			x,
+			box->y,
+			charWidth,
+			box->h
+		};
+		
+		renderImage(renderer, &chars[index][frame], &dest);
+		x += charWidth;
+	}
+}
+
+void renderButton(SDL_Renderer *renderer, const Button *button, int frame) {
 	SDL_Color color;
 
 	if(button->is_pressed) {
@@ -171,7 +204,7 @@ void renderButton(SDL_Renderer *renderer, const Button *button) {
 
 	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 	SDL_RenderFillRect(renderer, &button->rectangle);
-	renderImage(renderer, &button->image, &button->rectangle);
+	renderImageText(button->text, &button->rectangle, frame);
 }
 
 void renderTime(SDL_Renderer *renderer, Timer *timer) {
@@ -185,7 +218,7 @@ void renderTime(SDL_Renderer *renderer, Timer *timer) {
 	int frame    = timer->animation_frame;
 
 	SDL_Rect destination = {
-		timer->rectangle.x, timer->rectangle.y, DIGIT_WIDTH, DIGIT_HEIGHT
+		timer->rectangle.x, PADDING + timer->rectangle.y, DIGIT_WIDTH, DIGIT_HEIGHT
 	};
 
 	SDL_Color timer_color = timer->color;
@@ -212,7 +245,8 @@ void renderTime(SDL_Renderer *renderer, Timer *timer) {
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 4;
 	renderImage(renderer, &timer->digits[sec_ones][frame], &destination);
 
-	renderButton(renderer, &timer->button);
+	renderButton(renderer, &timer->startButton, frame);
+	renderButton(renderer, &timer->resetButton, frame);
 }
 
 void updateTimer(Timer *timer, SDL_Renderer *renderer) {
@@ -229,6 +263,7 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer) {
 		if(timer->minutes == 0 && timer->seconds == 0) {
 			if(timer->started) {
 				Mix_PlayMusic(sound, 1);
+				timer->startButton.text = "start";
 			}
 			timer->started = false;
 			if(timer->type == FOCUS) {
@@ -255,7 +290,7 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer) {
 int appSetup() {
 	Uint32 t0 = SDL_GetTicks();
 	window = SDL_CreateWindow(
-							"Pomo Dhillon",
+							"Pammi Dhillon",
 							SDL_WINDOWPOS_CENTERED,
 							SDL_WINDOWPOS_CENTERED,
 							WINDOW_WIDTH,
@@ -342,8 +377,30 @@ int loadImages() {
 		}
 	}
 
+	// load the individual letters
+	for(int i=0; LETTERS[i]!='\0'; i++) {
+		for(int j=1; j<=3; j++) {
+			char path[32];
+			char ch = LETTERS[i];
+			int index = (int)(ch - 'a');
+
+			if(strchr(LETTERS, ch) != NULL) {
+				int written = snprintf(path, sizeof(path), "image/%c_%d.png", ch, j);
+				if(written < 0 || written >= sizeof(path)) {
+					fprintf(stderr, "path is too long\n");
+					return 0;
+				}
+
+				chars[index][j-1] = loadImage(renderer, path);
+				if(chars[index][j-1].texture == NULL) {
+					fprintf(stderr, "failed to load image: %s [%s]\n", path, IMG_GetError()); 
+					return 0;
+				}
+			}
+		}
+	}
+
 	// TODO: maybe add some function instead of writing same code twice stupid
-	
 	char path[32];
 
 	for(int i=1; i<=3; i++) {
@@ -360,15 +417,6 @@ int loadImages() {
 		}
 	}
 
-	start_img = loadImage(renderer, "image/start.png");
-	reset_img = loadImage(renderer, "image/reset.png");
-
-	if(start_img.texture == NULL ||
-	   reset_img.texture == NULL) {
-		fprintf(stderr, "failed to load button image: %s\n", IMG_GetError()); 
-		return 0;
-	}
-
 	printf("loadImages took %ums\n", SDL_GetTicks() - t0);
 
 	return 1;
@@ -382,42 +430,65 @@ int observeEvents(SDL_Event *event, Timer *timer) {
 			int mouse_x = event->motion.x;
 			int mouse_y = event->motion.y;
 
-			timer->button.is_hovered = SDL_PointInRect(
+			timer->startButton.is_hovered = SDL_PointInRect(
 														&(SDL_Point) {mouse_x, mouse_y},
-														&timer->button.rectangle);
+														&timer->startButton.rectangle);
 
-			if(timer->button.is_hovered) {
+			timer->resetButton.is_hovered = SDL_PointInRect(
+														&(SDL_Point) {mouse_x, mouse_y},
+														&timer->resetButton.rectangle);
+
+			if(timer->startButton.is_hovered || timer->resetButton.is_hovered) {
 				SDL_SetCursor(handCursor);
 			} else {
 				SDL_SetCursor(arrowCursor);
 			}
+
 		} else if(event->type == SDL_MOUSEBUTTONDOWN) {
 			if(event->button.button == SDL_BUTTON_LEFT) {
 				int mouse_x = event->button.x;
 				int mouse_y = event->button.y;
 
-				timer->button.is_pressed = SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y},
-															&timer->button.rectangle);
+				timer->startButton.is_pressed = SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y},
+															&timer->startButton.rectangle);
+
+				timer->resetButton.is_pressed = SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y},
+															&timer->resetButton.rectangle);
 			}
 		} else if(event->type == SDL_MOUSEBUTTONUP) {
 			if(event->button.button == SDL_BUTTON_LEFT) {
 				int mouse_x = event->button.x;
 				int mouse_y = event->button.y;
-				timer->button.is_pressed = 0;
 
-				if(SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y}, &timer->button.rectangle)) {
+				if(SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y}, &timer->startButton.rectangle)) {
+					timer->startButton.is_pressed = 0;
+					Mix_HaltChannel(1);
 					Mix_PlayMusic(click, 1);
-
-
-					if(timer->button.image.texture == reset_img.texture) {
-						timer->button.image = start_img;
+					if(timer->startButton.text == "pause") {
+						timer->startButton.text = "start";
 						timer->started = false;
-						Mix_HaltMusic();
 					} else {
-						timer->button.image = reset_img;
+						timer->startButton.text = "pause";
 						timer->started = true;
 					}
 					timer->last_tick = SDL_GetTicks();
+				}
+
+
+				if(SDL_PointInRect(&(SDL_Point) {mouse_x, mouse_y}, &timer->resetButton.rectangle)) {
+					timer->resetButton.is_pressed = 0;
+					timer->startButton.is_pressed = 0;
+					timer->startButton.text = "start";
+					Mix_HaltChannel(1);
+					Mix_PlayMusic(click, 1);
+					timer->started = false;
+					if(timer->type == FOCUS) {
+						timer->minutes = FOCUS_START_MIN;
+						timer->seconds = FOCUS_START_SEC;
+					} else {
+						timer->minutes = BREAK_START_MIN;
+						timer->seconds = BREAK_START_SEC;
+					}
 				}
 			}
 		}
@@ -441,7 +512,6 @@ void runApp() {
 		SDL_SetRenderDrawColor(renderer, 163, 79, 76, 255);
 		SDL_RenderClear(renderer);
 
-		renderButton(renderer, &timer.button);
 		renderTime(renderer, &timer);
 		SDL_RenderPresent(renderer);
 
@@ -459,19 +529,35 @@ void configureTimer() {
     timer = (Timer) {
         .rectangle = { x, y, clockWidth, clockHeight },
         .color = { 171, 97, 95, 255 },
-        .button = {
+        .startButton = {
 			.rectangle = {
-				x + (clockWidth - 200) / 2,
-				y + DIGIT_HEIGHT,
+				x + PADDING,
+				y + DIGIT_HEIGHT + PADDING * 2,
 				200,
 				70
 			},
 			.normal_color = { 171, 97, 95, 255 },
 			.hover_color = { 163, 79, 76, 255 },
-			.pressed_color = { 255, 255, 120, 255 },
+			.pressed_color = { 255, 255, 255, 255 },
 			.is_hovered = 0,
 			.is_pressed = 0,
-			.image = start_img
+			.image = start_img,
+			.text = "start"
+		},
+		.resetButton = {
+			.rectangle = {
+				x + (clockWidth - 200) - PADDING,
+				y + DIGIT_HEIGHT + PADDING * 2,
+				200,
+				70
+			},
+			.normal_color = { 171, 97, 95, 255  - PADDING},
+			.hover_color = { 163, 79, 76, 255 },
+			.pressed_color = { 255, 255, 255, 255 },
+			.is_hovered = 0,
+			.is_pressed = 0,
+			.image = start_img,
+			.text = "reset"
 		},
         .digits = numbers,
 		.colon_img = colon_img,
