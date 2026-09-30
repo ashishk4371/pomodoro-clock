@@ -463,7 +463,7 @@ void configureTimer() {
 				70
 			},
 			.normal_color = { 171, 97, 95, 255 },
-			.hover_color = { 255, 255, 255, 255 },
+			.hover_color = { 163, 79, 76, 255 },
 			.pressed_color = { 255, 255, 120, 255 },
 			.is_hovered = 0,
 			.is_pressed = 0,
