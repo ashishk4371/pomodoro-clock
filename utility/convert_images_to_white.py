@@ -2,7 +2,7 @@ from pathlib import Path
 from PIL import Image
 
 INPUT_DIR = Path("../image")
-OUTPUT_DIR = Path("image_white")
+OUTPUT_DIR = Path("../image")
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 

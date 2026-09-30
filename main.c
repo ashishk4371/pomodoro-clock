@@ -34,6 +34,7 @@ typedef struct {
 Image numbers[10][3];
 Image start_img;
 Image reset_img;
+Image colon_img[3];
 Image colon;
 
 typedef struct {
@@ -62,6 +63,7 @@ typedef struct {
 	SDL_Color color;
 	Button button;
 	Image (*digits)[3];
+	Image *colon_img;
 	bool started;
 	int minutes;
 	int seconds;
@@ -96,7 +98,7 @@ int validateInit() {
 }
 
 Image loadImage(SDL_Renderer *renderer, const char *filepath) {
-Image image = {0};
+	Image image = {0};
 	SDL_Surface *surface = IMG_Load(filepath);
 
 	if(surface == NULL) {
@@ -122,7 +124,6 @@ Image image = {0};
 	if(image.path == NULL) {}
 
 	strcpy(image.path, filepath);
-
 	SDL_FreeSurface(surface);
 
 	return image;
@@ -173,7 +174,7 @@ void renderButton(SDL_Renderer *renderer, const Button *button) {
 	renderImage(renderer, &button->image, &button->rectangle);
 }
 
-void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
+void renderTime(SDL_Renderer *renderer, Timer *timer) {
 
 	int min_tens = timer->minutes / 10;
 	int min_ones = timer->minutes % 10;
@@ -201,7 +202,7 @@ void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
 	renderImage(renderer, &timer->digits[min_ones][frame], &destination);
 
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 2;
-	renderImage(renderer, colon, &destination);
+	renderImage(renderer, &timer->colon_img[frame], &destination);
 
 	// tenth sec digit
 	destination.x = timer->rectangle.x + DIGIT_WIDTH * 3;
@@ -214,7 +215,7 @@ void renderTime(SDL_Renderer *renderer, Timer *timer, Image *colon) {
 	renderButton(renderer, &timer->button);
 }
 
-void updateTimer(Timer *timer, SDL_Renderer *renderer, Image *colon) {
+void updateTimer(Timer *timer, SDL_Renderer *renderer) {
 	if(!timer->started) {
 		timer->last_tick = SDL_GetTicks();
 		return;
@@ -248,8 +249,6 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer, Image *colon) {
 			timer->minutes--;
 			timer->seconds = 59;
 		}
-
-		renderTime(renderer, timer, colon);
 	}
 }
 
@@ -265,7 +264,7 @@ int appSetup() {
 							);
 
 	if(window == NULL) {
-		fprintf(stderr, "Window creation failed: %s\n", SDL_GetError());
+		fprintf(stderr, "window creation failed: %s\n", SDL_GetError());
 		SDL_Quit();
 		return 0;
 	}
@@ -279,7 +278,7 @@ int appSetup() {
 								);
 
 	if(renderer == NULL) {
-		fprintf(stderr, "Renderer creation failed: %s\n", SDL_GetError());
+		fprintf(stderr, "renderer creation failed: %s\n", SDL_GetError());
 		SDL_DestroyWindow(window);
 		SDL_Quit();
 		return 0;
@@ -287,7 +286,7 @@ int appSetup() {
 
 	sound = Mix_LoadMUS("sound/alarm.mp3");
 	if(sound == NULL) {
-		fprintf(stderr, "Failed to load the sound: %s\n", Mix_GetError());
+		fprintf(stderr, "failed to load the sound: %s\n", Mix_GetError());
 		Mix_CloseAudio();
 		SDL_Quit();
 		return 0;
@@ -295,7 +294,7 @@ int appSetup() {
 
 	click = Mix_LoadMUS("sound/click.mp3");
 	if(click == NULL) {
-		fprintf(stderr, "Failed to load the click sound: %s\n", Mix_GetError());
+		fprintf(stderr, "failed to load the click sound: %s\n", Mix_GetError());
 		Mix_CloseAudio();
 		SDL_Quit();
 		return 0;
@@ -305,7 +304,7 @@ int appSetup() {
 	handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 
 	if (arrowCursor == NULL || handCursor == NULL) {
-		fprintf(stderr, "Failed to create cursors: %s\n",
+		fprintf(stderr, "failed to create cursors: %s\n",
 				SDL_GetError());
 		return 0;
 	}
@@ -315,54 +314,58 @@ int appSetup() {
 	return 1;
 }
 
-char *repeatStr(char *str, size_t count) {
-	if(count == 0) return NULL;
-	char *ret = malloc(strlen(str) * count + count);
-	if(ret == NULL) return NULL;
-	strcpy(ret, str);
-	while(--count < 0) {
-		strcat(ret, "");
-		strcat(ret, str);
-	}
-	return ret;
-}
-
 int loadImages() {
 	Uint32 t0 = SDL_GetTicks();
+	
 	for(int i=0; i<10; i++) {
 		for(int j=1; j<=3; j++) {
 			char path[32];
 			char name[4];
 
-			for(int k=0; k<j; k++) {
+			for(int k=0; k<3; k++) {
 				name[k] = (char)('0' + i);
 			}
 
 			name[j] = '\0';
 
-			int written = snprintf(path, sizeof(path), "white_image/%s.png", name);
+			int written = snprintf(path, sizeof(path), "image/%s.png", name);
 			if(written < 0 || written >= sizeof(path)) {
-				fprintf(stderr, "Path is too long\n");
+				fprintf(stderr, "path is too long\n");
 				return 0;
 			}
 
 			numbers[i][j-1] = loadImage(renderer, path);
-
 			if(numbers[i][j-1].texture == NULL) {
-				fprintf(stderr, "Failed to load image: %s [%s]\n", path, IMG_GetError()); 
+				fprintf(stderr, "failed to load image: %s [%s]\n", path, IMG_GetError()); 
 				return 0;
 			}
 		}
 	}
+
+	// TODO: maybe add some function instead of writing same code twice stupid
 	
-	start_img = loadImage(renderer, "white_image/start.png");
-	reset_img = loadImage(renderer, "white_image/reset.png");
-	colon     = loadImage(renderer, "white_image/colon.png");
+	char path[32];
+
+	for(int i=1; i<=3; i++) {
+		int written = snprintf(path, sizeof(path), "image/colon_%d.png", i);
+		if(written < 0 || written >= sizeof(path)) {
+			fprintf(stderr, "path is too long\n");
+			return 0;
+		}
+
+		colon_img[i-1] = loadImage(renderer, path);
+		if(colon_img[i-1].texture == NULL) {
+			fprintf(stderr, "failed to load image: %s [%s]\n", path, IMG_GetError()); 
+			return 0;
+		}
+	}
+
+	start_img = loadImage(renderer, "image/start.png");
+	reset_img = loadImage(renderer, "image/reset.png");
 
 	if(start_img.texture == NULL ||
-	   reset_img.texture == NULL ||
-	   colon.texture     == NULL) {
-		fprintf(stderr, "Failed to load button image: %s\n", IMG_GetError()); 
+	   reset_img.texture == NULL) {
+		fprintf(stderr, "failed to load button image: %s\n", IMG_GetError()); 
 		return 0;
 	}
 
@@ -432,13 +435,14 @@ void runApp() {
 		if(!running) {
 			break;
 		}
-		updateTimer(&timer, renderer, &colon);
+		updateTimer(&timer, renderer);
 		updateDigitAnimation(&timer);
 
 		SDL_SetRenderDrawColor(renderer, 163, 79, 76, 255);
 		SDL_RenderClear(renderer);
 
-		renderTime(renderer, &timer, &colon);
+		renderButton(renderer, &timer.button);
+		renderTime(renderer, &timer);
 		SDL_RenderPresent(renderer);
 
 		SDL_Delay(16);
@@ -470,6 +474,7 @@ void configureTimer() {
 			.image = start_img
 		},
         .digits = numbers,
+		.colon_img = colon_img,
         .started = false,
         .last_tick = SDL_GetTicks(),
 		.type = FOCUS,
@@ -494,7 +499,10 @@ void cleanupApp() {
 		}
 	}
 
-	destroyImage(&colon);
+	for(int i=0; i<3; i++) {
+		destroyImage(&colon_img[i]);
+	}
+
 	destroyImage(&start_img);
 	destroyImage(&reset_img);
 
