@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTD/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+
+	<key>CFBundleDisplayName</key>
+	<string>Pomodoro</string>
+
+	<key>CFBundleExecutable</key>
+	<string>pomodoro</string>
+
+	<key>CFBundleIconFile</key>
+	<string>Pomodoro.icns</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>com.nobullshit.pomodoro</string>
+
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<key>CFBundleName</key>
+	<string>Pomodoro</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<key>NSHighResolutionCapable</key>
+	<true />
+</dict>
+</plist>
+

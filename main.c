@@ -3,15 +3,17 @@
 #include <SDL2/SDL_image.h>
 #include <stdbool.h>
 #include <SDL2/SDL_mixer.h>
+#include <limits.h>
 
+#define APP_NAME            "pomodoro.app"
 #define WINDOW_WIDTH      800
 #define WINDOW_HEIGHT     600
 #define TIMER_HEIGHT      400
 #define TIMER_WIDTH       600
 #define DIGIT_WIDTH       120
 #define DIGIT_HEIGHT      120
-#define FOCUS_START_MIN   0
-#define FOCUS_START_SEC   10 
+#define FOCUS_START_MIN   25 
+#define FOCUS_START_SEC   0 
 #define BREAK_START_MIN   5 
 #define BREAK_START_SEC   0 
 #define DIGIT_FRAME_COUNT 3
@@ -20,6 +22,8 @@
 #define CHAR_WIDTH        5 
 #define CHAR_HEIGHT       5 
 #define LETTERS           "aeprstu"
+#define IMAGE_RESOURCE_PATH "/Contents/Resources/images"
+#define SOUND_RESOURCE_PATH "/Contents/Resources/sounds"
 
 Mix_Music    *sound       = NULL;
 Mix_Music    *click       = NULL;
@@ -27,6 +31,7 @@ SDL_Window   *window      = NULL;
 SDL_Renderer *renderer    = NULL;
 SDL_Cursor   *arrowCursor = NULL;
 SDL_Cursor   *handCursor  = NULL;
+char         *resource_path = NULL;
 
 typedef struct {
 	SDL_Texture *texture;
@@ -290,7 +295,7 @@ void updateTimer(Timer *timer, SDL_Renderer *renderer) {
 int appSetup() {
 	Uint32 t0 = SDL_GetTicks();
 	window = SDL_CreateWindow(
-							"Pammi Dhillon",
+							"Pomodoro",
 							SDL_WINDOWPOS_CENTERED,
 							SDL_WINDOWPOS_CENTERED,
 							WINDOW_WIDTH,
@@ -319,7 +324,17 @@ int appSetup() {
 		return 0;
 	}
 
-	sound = Mix_LoadMUS("sound/alarm.mp3");
+	resource_path = SDL_GetBasePath();
+
+	if(resource_path == NULL) {
+		fprintf(stderr, "Could not find resource path: %s\n", SDL_GetError());
+		return 1;
+	}
+
+	char alarm_path[128];
+	snprintf(alarm_path, sizeof(alarm_path), "%ssounds/alarm.mp3", resource_path);
+
+	sound = Mix_LoadMUS(alarm_path);
 	if(sound == NULL) {
 		fprintf(stderr, "failed to load the sound: %s\n", Mix_GetError());
 		Mix_CloseAudio();
@@ -327,7 +342,9 @@ int appSetup() {
 		return 0;
 	}
 
-	click = Mix_LoadMUS("sound/click.mp3");
+	char click_path[128];
+	snprintf(click_path, sizeof(click_path), "%ssounds/click.mp3", resource_path);
+	click = Mix_LoadMUS(click_path);
 	if(click == NULL) {
 		fprintf(stderr, "failed to load the click sound: %s\n", Mix_GetError());
 		Mix_CloseAudio();
@@ -354,7 +371,7 @@ int loadImages() {
 	
 	for(int i=0; i<10; i++) {
 		for(int j=1; j<=3; j++) {
-			char path[32];
+			char path[128];
 			char name[4];
 
 			for(int k=0; k<3; k++) {
@@ -363,7 +380,7 @@ int loadImages() {
 
 			name[j] = '\0';
 
-			int written = snprintf(path, sizeof(path), "image/%s.png", name);
+			int written = snprintf(path, sizeof(path), "%simages/%s.png", resource_path, name);
 			if(written < 0 || written >= sizeof(path)) {
 				fprintf(stderr, "path is too long\n");
 				return 0;
@@ -380,12 +397,12 @@ int loadImages() {
 	// load the individual letters
 	for(int i=0; LETTERS[i]!='\0'; i++) {
 		for(int j=1; j<=3; j++) {
-			char path[32];
+			char path[128];
 			char ch = LETTERS[i];
 			int index = (int)(ch - 'a');
 
 			if(strchr(LETTERS, ch) != NULL) {
-				int written = snprintf(path, sizeof(path), "image/%c_%d.png", ch, j);
+				int written = snprintf(path, sizeof(path), "%simages/%c_%d.png", resource_path, ch, j);
 				if(written < 0 || written >= sizeof(path)) {
 					fprintf(stderr, "path is too long\n");
 					return 0;
@@ -401,10 +418,10 @@ int loadImages() {
 	}
 
 	// TODO: maybe add some function instead of writing same code twice stupid
-	char path[32];
+	char path[128];
 
 	for(int i=1; i<=3; i++) {
-		int written = snprintf(path, sizeof(path), "image/colon_%d.png", i);
+		int written = snprintf(path, sizeof(path), "%simages/colon_%d.png", resource_path, i);
 		if(written < 0 || written >= sizeof(path)) {
 			fprintf(stderr, "path is too long\n");
 			return 0;
